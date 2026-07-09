@@ -1,38 +1,64 @@
 # petrificus-totalus
 
-A modular content disarm & reconstruction (CDR) library. It rewrites
-untrusted files into versions that cannot reasonably exploit a reader for
-that file type, preserving the original file type wherever possible (e.g. a
-`.jpg` in, a `.jpg` out).
+An open-source content disarm & reconstruction (CDR) library. 
 
-The handler for a file is chosen from its actual content (sniffed via
-`libmagic`), never its name or extension, so a malicious payload can't dodge
-disarming just by being renamed `photo.jpg`.
+# Goals
+
+Rewrite untrusted and potentially unsafe files into versions that cannot
+reasonably exploit a reader for that file type. Feel free to open issues
+to discuss the subjective choices I made.
+
+This library aims at preserving the file type (e.g. disarming a JPEG image
+outputs a JPEG image).
+
+As a temporary implementation, when CDR is deemed too complex to exhaustively
+remove potentially unsafe file elements, a safe PDF equivalent of the file
+is built instead. The goal is to provide safe file viewing by accepting to
+lose the capability to edit the file in its original format (e.g. for now,
+disarming a `.docx` file outputs a `.docx.pdf` safe equivalent)
+
+The disarming method for a file is chosen from its MIME type rather than
+its file name extension, so a malicious payload can't dodge disarming just
+by being renamed `photo.jpg`.
+
+> **⚠️ Warning: this library does not provide isolation.**
+>
+> The file readers and libraries used to parse untrusted input (image codecs,
+> PDF/Office renderers, OCR) can themselves be exploited, and a malicious file
+> could compromise the system before disarming ever completes. Always run
+> petrificus-totalus inside an isolated environment, such as a VM or (less
+> secure) container - never directly on a machine you care about.
+>
+> For a ready-made isolation setup, see Freedom of the Press Foundation's
+> [Dangerzone](https://github.com/freedomofpress/dangerzone) project, which
+> converts everything to safe PDFs.
+>
+> Built-in isolation may be added to this project in the future.
 
 ## Usage
 
 ```python
-from petrificus_totalus import petrify_file, petrify_folder
+from petrificus_totalus import disarm_file, disarm_folder
 
 # Single file, overwritten in place.
-petrify_file("suspicious.jpg")
+disarm_file("suspicious.jpg")
 
 # Single file, written to a new path (original left untouched).
-petrify_file("suspicious.jpg", "clean/suspicious.jpg")
+disarm_file("suspicious.jpg", "clean/suspicious.jpg")
 
 # Whole directory tree, processed in parallel, mirrored into output_dir.
-results = petrify_folder("untrusted/", "clean/")
+results = disarm_folder("untrusted/", "clean/")
 for r in results:
-    print(r.input_path, r.status)  # "petrified", "skipped", or "failed"
+    print(r.input_path, r.status)  # "disarmed", "skipped", or "failed"
 ```
 
 Files with no registered handler are **skipped**, not copied through
-unsanitized - they're reported with status `"skipped"` in the returned
-`PetrifyResult` list rather than appearing in the output. Per-file failures
-are reported as `"failed"` rather than aborting the whole `petrify_folder()`
+unsanitized - they are reported with status `"skipped"` in the returned
+`disarmResult` list rather than appearing in the output. Per-file failures
+are reported as `"failed"` rather than aborting the whole `disarm_folder()`
 run.
 
-`petrify_folder()` processes files in parallel using a `ProcessPoolExecutor`
+`disarm_folder()` processes files in parallel using a `ProcessPoolExecutor`
 (pass `max_workers=` to control concurrency). Process-based isolation means a
 crash triggered by a malformed or malicious input only takes down that one
 file's worker, not the whole run.
@@ -40,30 +66,30 @@ file's worker, not the whole run.
 ## Command line
 
 ```bash
-petrificus-totalus suspicious.jpg              # petrify in place
-petrificus-totalus suspicious.jpg -o clean.jpg  # petrify to a new path
-petrificus-totalus untrusted/ -o clean/         # petrify a whole directory tree
+petrificus-totalus suspicious.jpg               # disarm in place
+petrificus-totalus suspicious.jpg -o clean.jpg  # disarm to a new path
+petrificus-totalus untrusted/ -o clean/         # disarm a whole directory tree
 petrificus-totalus untrusted/ --max-workers 4   # cap worker processes
 ```
 
-Petrifying a single file prints the output path on success. Petrifying a
+Disarming a single file prints the output path on success. disarming a
 directory prints one summary line (counts of petrified/skipped/failed) and
 exits non-zero if any file failed.
 
 ## Supported file types
 
-| Type | Extensions | Strategy |
-|---|---|---|
-| Images | `.jpg`, `.jpeg`, `.png`, `.bmp` | Fully decode, then re-encode through a different intermediate codec before saving back to the original format. |
-| PDF | `.pdf` | Rasterize every page to a bitmap and rebuild a fresh PDF from pixels alone, then run OCR (auto-detected language) to restore a searchable text layer. |
-| Word | `.docx` | Render with LibreOffice to PDF, then run the PDF strategy above. Output is `<name>.docx.pdf`, not a `.docx` - the original is removed once petrifying succeeds. |
+| Type | Strategy |
+|---|---|
+| JPEG, PNG, BMP |  Fully decode, then re-encode through a different intermediate codec before saving back to the original format. |
+| PDF | Rasterize every page to a bitmap and rebuild a fresh PDF from pixels alone, then run OCR (auto-detected language) to restore a searchable text layer. |
+| MS Word | Render with LibreOffice to PDF, then run the PDF strategy above. Output is `<name>.docx.pdf`, not a `.docx` |
 
 Files are matched by MIME type, not extension - see `iter_supported_mime_types()`.
 
 ## Adding a new file type
 
 Add a module to `src/petrificus_totalus/handlers/` that registers a
-`petrify(input_path: Path, output_path: Path) -> None` function against one
+`disarm(input_path: Path, output_path: Path) -> None` function against one
 or more MIME types (matched from content, not extension - see
 `_registry.detect_mime_type`):
 
@@ -72,10 +98,10 @@ or more MIME types (matched from content, not extension - see
 from pathlib import Path
 from .._registry import register_handler
 
-def petrify(input_path: Path, output_path: Path) -> None:
+def disarm(input_path: Path, output_path: Path) -> None:
     ...  # write a disarmed version of input_path to output_path
 
-register_handler("application/x-example")(petrify)
+register_handler("application/x-example")(disarm)
 ```
 
 It's discovered automatically - no other registration is required. Pass
@@ -93,6 +119,9 @@ uv run pytest      # run tests
 uv build           # build a wheel + sdist into dist/
 ```
 
-The PDF and Word handlers also need system binaries not installed by `uv
-sync`: `libmagic` (MIME sniffing), LibreOffice (`soffice`, for `.docx`
-rendering), and Tesseract (OCR, via `ocrmypdf`).
+## External dependencies
+
+The project uses the following external dependencies not installed by `uv
+sync:
+* LibreOffice (`soffice`, for `.docx` rendering)
+* Tesseract (OCR, via `ocrmypdf`).

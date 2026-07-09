@@ -2,21 +2,21 @@
 
 Transforms untrusted files into versions that cannot reasonably exploit a
 reader for that file type, preserving the original file type wherever
-possible. See :func:`petrify_file` and :func:`petrify_folder`.
+possible. See :func:`disarm_file` and :func:`disarm_folder`.
 """
 
 from ._registry import iter_supported_mime_types
 from .core import (
-    PetrifyResult,
+    DisarmResult,
     UnsupportedFileTypeError,
-    petrify_file,
-    petrify_folder,
+    disarm_file,
+    disarm_folder,
 )
 
 __all__ = [
-    "PetrifyResult",
+    "DisarmResult",
     "UnsupportedFileTypeError",
     "iter_supported_mime_types",
-    "petrify_file",
-    "petrify_folder",
+    "disarm_file",
+    "disarm_folder",
 ]

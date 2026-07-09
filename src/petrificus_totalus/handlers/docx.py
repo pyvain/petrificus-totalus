@@ -13,9 +13,9 @@ pipeline -- the same "pixels only" CDR guarantee already used for PDFs and
 images.
 
 The output is therefore a PDF, not a .docx (see the output_suffix passed to
-register_handler): petrifying "report.docx" in place produces
+register_handler): disarming "report.docx" in place produces
 "report.docx.pdf", and the original is removed once that succeeds (handled
-by core.petrify_file).
+by core.disarm_file).
 """
 
 import subprocess
@@ -23,15 +23,15 @@ import tempfile
 from pathlib import Path
 
 from .._registry import register_handler
-from .pdf import petrify as petrify_pdf
+from .pdf import disarm as disarm_pdf
 
 _CONVERT_TIMEOUT = 120
 
 
-def petrify(input_path: Path, output_path: Path) -> None:
+def disarm(input_path: Path, output_path: Path) -> None:
     with tempfile.TemporaryDirectory() as tmp_dir:
         # Each conversion gets its own LibreOffice profile dir so concurrent
-        # petrify_folder workers don't collide over the same profile lock.
+        # disarm_folder workers don't collide over the same profile lock.
         profile_dir = Path(tmp_dir) / "profile"
         subprocess.run(
             [
@@ -53,10 +53,10 @@ def petrify(input_path: Path, output_path: Path) -> None:
         if not rendered_pdf.is_file():
             raise ValueError(f"LibreOffice did not produce a PDF for {input_path}")
 
-        petrify_pdf(rendered_pdf, output_path)
+        disarm_pdf(rendered_pdf, output_path)
 
 
 register_handler(
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     output_suffix=".pdf",
-)(petrify)
+)(disarm)

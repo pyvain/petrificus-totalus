@@ -15,7 +15,7 @@ from PIL import Image
 from .._registry import register_handler
 
 
-def petrify(input_path: Path, output_path: Path) -> None:
+def disarm(input_path: Path, output_path: Path) -> None:
     with Image.open(input_path) as original:
         original.load()
         # Trust Pillow's own content-sniffed format, not the file extension.
@@ -24,17 +24,19 @@ def petrify(input_path: Path, output_path: Path) -> None:
         # an alpha channel; PNG is used for the rest since none of them carry
         # alpha in a way that would be lost re-encoding through it.
         intermediate_format = "WEBP" if save_format == "PNG" else "PNG"
-        intermediate_kwargs = {"lossless": True} if intermediate_format == "WEBP" else {}
+        intermediate_kwargs = (
+            {"lossless": True} if intermediate_format == "WEBP" else {}
+        )
 
         buffer = io.BytesIO()
         original.save(buffer, format=intermediate_format, **intermediate_kwargs)
 
     buffer.seek(0)
-    with Image.open(buffer) as roundtripped:
-        roundtripped.load()
-        if save_format == "JPEG" and roundtripped.mode != "RGB":
-            roundtripped = roundtripped.convert("RGB")
-        roundtripped.save(output_path, format=save_format)
+    with Image.open(buffer) as intermediate:
+        intermediate.load()
+        if save_format == "JPEG" and intermediate.mode != "RGB":
+            intermediate = intermediate.convert("RGB")
+        intermediate.save(output_path, format=save_format)
 
 
-register_handler("image/jpeg", "image/png", "image/bmp", "image/x-ms-bmp")(petrify)
+register_handler("image/jpeg", "image/png", "image/bmp", "image/x-ms-bmp")(disarm)

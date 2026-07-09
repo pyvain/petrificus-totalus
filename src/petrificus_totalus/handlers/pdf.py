@@ -6,10 +6,6 @@ data only, discarding anything that isn't pixel data -- JavaScript, embedded
 files, launch/form actions, fonts, the text layer -- the same way
 handlers/image.py rebuilds raster images from decoded pixel data alone.
 
-Pages are rendered and re-inserted one at a time, each written to a temp file
-and referenced by path rather than held decoded in memory, so peak memory
-stays roughly constant regardless of page count.
-
 Rasterizing discards the text layer along with everything else, so the
 result is run through ocrmypdf (Tesseract) to add back an invisible,
 searchable text layer over the page images -- the pixels stay the sole
@@ -20,7 +16,7 @@ English is always kept as a secondary language when it isn't the detected
 primary, since documents often mix a local language with English terms.
 """
 
-import tempfile
+import logging
 from pathlib import Path
 
 import langdetect
@@ -29,8 +25,20 @@ import pymupdf
 
 from .._registry import register_handler
 
+logger = logging.getLogger("petrificus-totalus")
+
+
 _RASTER_DPI = 300
 _DEFAULT_LANGUAGE = "eng"
+
+# Pages are rasterized in batches of this size, each batch saved to its own
+# intermediate file and reassembled at the end. Saving one page at a time
+# with saveIncr() (the previous approach) means every page reopens and
+# re-parses the whole growing output file, making that pass quadratic in
+# page count. Batching bounds both the number of times the growing file is
+# touched and the memory held at once (only one batch's pixmaps live in
+# memory at a time), at the cost of a single final merge pass.
+_BATCH_SIZE = 50
 
 # Used only to sample enough legible text to run langdetect against when a
 # document has no existing text layer (see _sample_text). Doesn't need to
@@ -62,21 +70,27 @@ _LANGDETECT_TO_TESSERACT = {
 def _sample_text(src: pymupdf.Document) -> str:
     """Grab enough text from ``src`` to guess its language.
 
-    Prefers the document's existing text layer (cheap, no OCR needed). Falls
-    back to a quick OCR pass over the first page with a broad multi-language
-    bootstrap set when there's no usable text layer -- i.e. a scanned PDF,
-    which is exactly the case where getting the OCR language right matters
-    most.
+    Prefers the document's existing text layer. Falls back to a quick OCR
+    pass over the first page with a broad multi-language bootstrap set
+    when there's no usable text layer -- i.e. a scanned PDF.
+
+    raises ValueError when it is not possible to sample enough text
     """
-    text = "\n".join(page.get_text() for page in src)
-    if len(text.strip()) >= _MIN_SAMPLE_CHARS:
+    text = "\n".join(page.get_textpage().extractTEXT().strip() for page in src)
+    if len(text) >= _MIN_SAMPLE_CHARS:
         return text
 
+    logger.debug(f"Not enough text to sample. Falling back to broad first page OCR.")
     first_page = src[0]
     textpage = first_page.get_textpage_ocr(
         flags=0, language=_BOOTSTRAP_LANGUAGES, dpi=_RASTER_DPI, full=True
     )
-    return first_page.get_text(textpage=textpage)
+    text += "\n" + textpage.extractTEXT()
+
+    if len(text) < _MIN_SAMPLE_CHARS:
+        raise ValueError("No text to sample")
+
+    return text
 
 
 def _detect_languages(src: pymupdf.Document) -> str:
@@ -87,47 +101,64 @@ def _detect_languages(src: pymupdf.Document) -> str:
     (product names, technical terms, code) that the primary-language
     dictionary alone would misread.
     """
-    text = _sample_text(src)
-    if len(text.strip()) < _MIN_SAMPLE_CHARS:
-        return _DEFAULT_LANGUAGE
     try:
-        detected = langdetect.detect(text)
-    except langdetect.LangDetectException:
+        text = _sample_text(src)
+    except ValueError:
+        logger.warning(
+            f"Cannot sample enough text for detection. Using the default language: {_DEFAULT_LANGUAGE}"
+        )
         return _DEFAULT_LANGUAGE
 
-    primary = _LANGDETECT_TO_TESSERACT.get(detected, _DEFAULT_LANGUAGE)
+    try:
+        detected = langdetect.detect(text)
+    except langdetect.LangDetectException as e:
+        logger.error(
+            f"langdetect raised an exception. Using the default language: {_DEFAULT_LANGUAGE}. Exception: {e}"
+        )
+        return _DEFAULT_LANGUAGE
+
+    if detected == "unknown":
+        logger.warning(
+            f"langdetect did not detect any language. Using the default language: {_DEFAULT_LANGUAGE}"
+        )
+        return _DEFAULT_LANGUAGE
+
+    try:
+        primary = _LANGDETECT_TO_TESSERACT[detected]
+    except KeyError:
+        logger.error(
+            f"langdetect's '{detected}' has no known equivalent among tesseract supported languages. Using the default language: {_DEFAULT_LANGUAGE}"
+        )
+        return _DEFAULT_LANGUAGE
+
     if primary == _DEFAULT_LANGUAGE:
         return primary
     return f"{primary}+{_DEFAULT_LANGUAGE}"
 
 
-def petrify(input_path: Path, output_path: Path) -> None:
-    with (
-        tempfile.TemporaryDirectory() as tmp_dir,
-        pymupdf.open(input_path) as src,
-        pymupdf.open() as out,
-    ):
+def disarm(input_path: Path, output_path: Path) -> None:
+    with pymupdf.open(input_path) as src, pymupdf.open() as dst:
+        logger.debug(f"{input_path}: detecting language...")
         language = _detect_languages(src)
+        logger.debug(f"{input_path}: identified {language}")
 
-        for page_number, page in enumerate(src):
+        for page_number, page in enumerate(src.pages()):
+            logger.debug(f"{input_path}: page {page_number}")
             pixmap = page.get_pixmap(dpi=_RASTER_DPI)
-            page_path = Path(tmp_dir) / f"page-{page_number}.png"
-            pixmap.save(page_path)
-            del pixmap
+            new_page = dst.new_page(width=page.rect.width, height=page.rect.height)
+            new_page.insert_image(new_page.rect, pixmap=pixmap)
 
-            new_page = out.new_page(width=page.rect.width, height=page.rect.height)
-            new_page.insert_image(new_page.rect, filename=page_path)
+        logger.debug(f"{input_path}: saving rasterized pdf {output_path}")
+        dst.save(output_path)
 
-        rasterized_path = Path(tmp_dir) / "rasterized.pdf"
-        out.save(rasterized_path)
-
-        ocrmypdf.ocr(
-            rasterized_path,
-            output_path,
-            language=language,
-            output_type="pdf",
-            progress_bar=False,
-        )
+    logger.debug(f"{input_path}: running ocr")
+    ocrmypdf.ocr(
+        output_path,
+        output_path,
+        language=language,
+        output_type="pdf",
+        progress_bar=False,
+    )
 
 
-register_handler("application/pdf")(petrify)
+register_handler("application/pdf")(disarm)

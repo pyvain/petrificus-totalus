@@ -1,7 +1,7 @@
 """Handler registration and discovery.
 
 Each module under :mod:`petrificus_totalus.handlers` registers itself against
-one or more MIME types by decorating its ``petrify`` function with
+one or more MIME types by decorating its ``disarm`` function with
 :func:`register_handler`. To support a new file type, add a new module to
 that package -- no changes to this file or to :mod:`petrificus_totalus.core`
 are needed.
@@ -33,7 +33,7 @@ def register_handler(
     Most handlers disarm a file while preserving its format, so the output
     path has the same extension as the input. Pass ``output_suffix`` (e.g.
     ``".pdf"``) for a handler that produces a different format instead --
-    :func:`petrificus_totalus.core.petrify_file` will append it to the
+    :func:`petrificus_totalus.core.disarm_file` will append it to the
     output filename (e.g. ``report.docx`` -> ``report.docx.pdf``) rather
     than assume the output extension matches the input.
     """
