@@ -58,5 +58,7 @@ def disarm(input_path: Path, output_path: Path) -> None:
 
 register_handler(
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.oasis.opendocument.text",
+    "text/rtf",
     output_suffix=".pdf",
 )(disarm)

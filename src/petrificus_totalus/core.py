@@ -53,11 +53,11 @@ def disarm_file(input_path: str | Path, output_path: str | Path | None = None) -
     mime_type = detect_mime_type(input_path)
     logger.debug(f"{input_path}: detected mime type: {mime_type}")
     handler = get_handler(mime_type)
-    logger.debug(f"{input_path}: will be handled by {handler}")
     if handler is None:
         raise UnsupportedFileTypeError(
             f"No CDR handler registered for MIME type {mime_type!r}"
         )
+    logger.debug(f"{input_path}: will be handled by {handler.__module__}")
 
     output_suffix = get_output_suffix(mime_type)
     resolved_output = (
