@@ -82,7 +82,9 @@ exits non-zero if any file failed.
 |---|---|
 | JPEG, PNG, BMP |  Fully decode, then re-encode through a different intermediate codec before saving back to the original format. |
 | PDF | Rasterize every page to a bitmap and rebuild a fresh PDF from pixels alone, then run OCR (auto-detected language) to restore a searchable text layer. |
-| MS Word | Render with LibreOffice to PDF, then run the PDF strategy above. Output is `<name>.docx.pdf`, not a `.docx` |
+| MS Word, LibreOffice Writer | Render with LibreOffice to PDF, then run the PDF strategy above. Output is `<name>.docx.pdf` or `<name>.odt.pdf`, not a `.docx` or a `.odt` |
+| MS Excel, LibreOffice Calc | Render with LibreOffice to PDF, then run the PDF strategy above. Output is `<name>.xlsx.pdf` or `<name>.ods.pdf`, not a `.xlsx` or a `.ods` |
+| Plain text, CSV | Copy unmodified. |
 
 Files are matched by MIME type, not extension - see `iter_supported_mime_types()`.
 
@@ -122,6 +124,6 @@ uv build           # build a wheel + sdist into dist/
 ## External dependencies
 
 The project uses the following external dependencies not installed by `uv
-sync:
+sync`:
 * LibreOffice (`soffice`, for `.docx` rendering)
 * Tesseract (OCR, via `ocrmypdf`).
