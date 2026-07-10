@@ -21,7 +21,8 @@ The disarming method for a file is chosen from its MIME type rather than
 its file name extension, so a malicious payload can't dodge disarming just
 by being renamed `photo.jpg`.
 
-> **⚠️ Warning: this library does not provide isolation.**
+> [!CAUTION]
+>  **This library does not provide isolation.**
 >
 > The file readers and libraries used to parse untrusted input (image codecs,
 > PDF/Office renderers, OCR) can themselves be exploited, and a malicious file
