@@ -1,8 +1,10 @@
 from pathlib import Path
 
 import docx
+import openpyxl
 import pymupdf
 import pytest
+from openpyxl.utils import get_column_letter
 from PIL import Image
 
 
@@ -61,6 +63,48 @@ def make_docx():
                 document.add_page_break()
             document.add_paragraph(text)
         document.save(path)
+        return path
+
+    return _make
+
+
+@pytest.fixture
+def make_unsupported():
+    """Factory fixture: writes a file with no registered CDR handler to disk.
+
+    Content is arbitrary bytes rather than text, since dispatch is by
+    sniffed content and plain text is a supported MIME type.
+    """
+
+    def _make(path: Path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(bytes(range(256)))
+        return path
+
+    return _make
+
+
+@pytest.fixture
+def make_xlsx():
+    """Factory fixture: writes a small test .xlsx to disk and returns its path."""
+
+    def _make(
+        path: Path,
+        *,
+        columns: int = 4,
+        rows: int = 3,
+        column_widths: tuple[float, ...] | None = None,
+    ):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        for row in range(1, rows + 1):
+            for col in range(1, columns + 1):
+                sheet.cell(row=row, column=col, value=f"r{row}c{col}")
+        if column_widths is not None:
+            for col, width in enumerate(column_widths, start=1):
+                sheet.column_dimensions[get_column_letter(col)].width = width
+        workbook.save(path)
         return path
 
     return _make

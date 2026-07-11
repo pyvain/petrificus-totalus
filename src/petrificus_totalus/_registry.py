@@ -40,15 +40,15 @@ def register_handler(
 
     def decorator(func: HandlerFunc) -> HandlerFunc:
         for mime_type in mime_types:
-            normalized = mime_type.lower()
-            if normalized in _REGISTRY:
+            mime_type = mime_type.lower()
+            if mime_type in _REGISTRY:
                 raise ValueError(
-                    f"MIME type {normalized!r} is already registered to "
-                    f"{_REGISTRY[normalized].__module__}.{_REGISTRY[normalized].__name__}"
+                    f"MIME type {mime_type!r} is already registered to "
+                    f"{_REGISTRY[mime_type].__module__}.{_REGISTRY[mime_type].__name__}"
                 )
-            _REGISTRY[normalized] = func
+            _REGISTRY[mime_type] = func
             if output_suffix is not None:
-                _OUTPUT_SUFFIX[normalized] = output_suffix
+                _OUTPUT_SUFFIX[mime_type] = output_suffix
         return func
 
     return decorator

@@ -63,6 +63,7 @@ def disarm_file(input_path: str | Path, output_path: str | Path | None = None) -
     resolved_output = (
         base_output.with_name(base_output.name + output_suffix)
         if output_suffix
+        and not base_output.name.lower().endswith(output_suffix.lower())
         else base_output
     )
     logger.debug(f"{input_path}: output will be {resolved_output}")
@@ -117,16 +118,20 @@ def disarm_folder(
     if not input_dir.is_dir():
         raise NotADirectoryError(input_dir)
 
-    in_place = output_dir is None
-    resolved_output_dir = input_dir if in_place else Path(output_dir)
+    output_dir = input_dir if output_dir is None else Path(output_dir)
 
     results: list[DisarmResult] = []
     futures: list[concurrent.futures.Future[DisarmResult]] = []
     with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
         for src in input_dir.rglob("*"):
+            dst = output_dir / src.relative_to(input_dir)
+            if src.is_dir():
+                dst.mkdir(parents=True, exist_ok=True)
+                continue
+
             if not src.is_file():
                 continue
-            dst = src if in_place else resolved_output_dir / src.relative_to(input_dir)
+
             futures.append(executor.submit(_disarm_worker, src, dst))
 
         for future in concurrent.futures.as_completed(futures):

@@ -14,4 +14,4 @@ def disarm(input_path: Path, output_path: Path) -> None:
         shutil.copy(input_path, output_path)
 
 
-register_handler("text/plain", "text/csv")(disarm)
+register_handler("text/plain", "text/csv", "inode/x-empty")(disarm)

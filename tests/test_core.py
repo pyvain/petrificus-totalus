@@ -24,9 +24,8 @@ def test_disarm_file_missing_file_raises(tmp_path: Path):
         disarm_file(tmp_path / "does-not-exist.jpg")
 
 
-def test_disarm_file_unsupported_extension_raises(tmp_path: Path):
-    unsupported = tmp_path / "notes.txt"
-    unsupported.write_text("hello")
+def test_disarm_file_unsupported_raises(tmp_path: Path, make_unsupported):
+    unsupported = make_unsupported(tmp_path / "notes.bin")
 
     with pytest.raises(UnsupportedFileTypeError):
         disarm_file(unsupported)
@@ -43,13 +42,15 @@ def test_disarm_file_dispatches_on_content_not_extension(tmp_path: Path, make_im
         assert img.format == "PNG"
 
 
-def test_disarm_folder_mirrors_structure_into_output_dir(tmp_path: Path, make_image):
+def test_disarm_folder_mirrors_structure_into_output_dir(
+    tmp_path: Path, make_image, make_unsupported
+):
     input_dir = tmp_path / "in"
     output_dir = tmp_path / "out"
     make_image(input_dir / "a.jpg", format="JPEG")
     make_image(input_dir / "nested" / "b.png", format="PNG", mode="RGBA")
-    (input_dir / "readme.txt").parent.mkdir(parents=True, exist_ok=True)
-    (input_dir / "readme.txt").write_text("not an image")
+    (input_dir / "empty").mkdir(parents=True)
+    make_unsupported(input_dir / "unsupported_dir" / "payload.bin")
 
     results = disarm_folder(input_dir, output_dir)
 
@@ -57,12 +58,16 @@ def test_disarm_folder_mirrors_structure_into_output_dir(tmp_path: Path, make_im
     statuses = {r.input_path.name: r.status for r in results}
     assert statuses["a.jpg"] == "disarmed"
     assert statuses["b.png"] == "disarmed"
-    assert statuses["readme.txt"] == "skipped"
+    assert statuses["payload.bin"] == "skipped"
 
     assert (output_dir / "a.jpg").is_file()
     assert (output_dir / "nested" / "b.png").is_file()
-    # Unsupported files are never copied through unsanitized.
-    assert not (output_dir / "readme.txt").exists()
+    # Unsupported files are never copied through unsanitized
+    assert not (output_dir / "unsupported_dir" / "payload.bin").exists()
+    # but parent directory is mirrored, even if empty
+    assert (output_dir / "unsupported_dir").is_dir()
+    # empty folders are replicated
+    assert (output_dir / "empty").is_dir()
     # Input files are left untouched when writing to a separate output_dir.
     assert (input_dir / "a.jpg").is_file()
 

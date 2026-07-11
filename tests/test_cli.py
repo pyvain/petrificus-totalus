@@ -36,9 +36,8 @@ def test_cli_missing_file_returns_error(tmp_path: Path, capsys):
     assert "no such file" in capsys.readouterr().err
 
 
-def test_cli_unsupported_file_returns_error(tmp_path: Path, capsys):
-    unsupported = tmp_path / "notes.txt"
-    unsupported.write_text("hello")
+def test_cli_unsupported_file_returns_error(tmp_path: Path, make_unsupported, capsys):
+    unsupported = make_unsupported(tmp_path / "notes.bin")
 
     exit_code = main([str(unsupported)])
 
@@ -46,10 +45,12 @@ def test_cli_unsupported_file_returns_error(tmp_path: Path, capsys):
     assert "No CDR handler registered" in capsys.readouterr().err
 
 
-def test_cli_disarms_folder_prints_summary(tmp_path: Path, make_image, capsys):
+def test_cli_disarms_folder_prints_summary(
+    tmp_path: Path, make_image, make_unsupported, capsys
+):
     input_dir = tmp_path / "docs"
     make_image(input_dir / "a.jpg", format="JPEG")
-    (input_dir / "readme.txt").write_text("not an image")
+    make_unsupported(input_dir / "payload.bin")
 
     exit_code = main([str(input_dir)])
 

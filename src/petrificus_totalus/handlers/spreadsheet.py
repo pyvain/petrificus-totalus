@@ -1,63 +1,85 @@
-"""CDR handler for Word (.docx) documents.
+"""CDR handler for spreadsheet (.xlsx, .xls, .ods) documents.
 
-A .docx can carry macros, embedded OLE objects, remote-template/DDE
-injection, and other attack surface baked into the OOXML structure itself.
-Stripping all of that while keeping the file genuinely editable would mean
-enumerating every dangerous construct and trusting that enumeration is
-complete. Since the goal here is safe *viewing* of an untrusted file rather
-than re-editing it, this handler sidesteps that entirely: it renders the
-document with LibreOffice (a real Word-compatible layout engine, so
-pagination and formatting come out faithfully, unlike a naive text dump) and
-hands the resulting PDF to handlers/pdf.py's existing rasterize+OCR
-pipeline -- the same "pixels only" CDR guarantee already used for PDFs and
-images.
-
-The output is therefore a PDF, not a .docx (see the output_suffix passed to
-register_handler): disarming "report.docx" in place produces
-"report.docx.pdf", and the original is removed once that succeeds (handled
-by core.disarm_file).
+The output is a PDF, not the original spreadsheet format: disarming
+"report.xlsx" in place produces "report.xlsx.pdf".
 """
 
+import shutil
 import subprocess
 import tempfile
+import uuid
+from functools import lru_cache
 from pathlib import Path
 
 from .._registry import register_handler
 from .pdf import disarm as disarm_pdf
 
 _CONVERT_TIMEOUT = 120
+_SOFFICE_SHUTDOWN_TIMEOUT = 30
+
+
+# Using ``--convert-to pdf`` with soffice paginates each sheet across a fixed
+# page size, which splits wide sheets so that some columns land on separate pages
+# from their neighbors. To avoid that, this handler drives LibreOffice over UNO,
+# using the helpers/spreadsheet_script.py script to widen each sheet's page to
+# fit its used columns before exporting, so every column always comes out on the
+# same page.
+
+# The UNO Python bridge lives in the system LibreOffice install, not in this
+# project's venv, so that script is run as a subprocess under the system
+# interpreter rather than imported here.
+_UNO_SCRIPT = Path(__file__).resolve().parents[1] / "helpers" / "spreadsheet_script.py"
+_UNO_PYTHON = "/usr/bin/python3"
 
 
 def disarm(input_path: Path, output_path: Path) -> None:
     with tempfile.TemporaryDirectory() as tmp_dir:
-        # Each conversion gets its own LibreOffice profile dir so concurrent
-        # disarm_folder workers don't collide over the same profile lock.
-        profile_dir = Path(tmp_dir) / "profile"
-        subprocess.run(
+        profile = Path(tmp_dir) / "profile"
+        pipe = f"petrificus_totalus_{uuid.uuid4().hex}"
+
+        soffice = subprocess.Popen(
             [
                 "soffice",
                 "--headless",
-                "--convert-to",
-                "pdf",
-                "--outdir",
-                tmp_dir,
-                f"-env:UserInstallation=file://{profile_dir}",
-                str(input_path),
+                "--invisible",
+                "--nologo",
+                "--norestore",
+                f"-env:UserInstallation=file://{profile}",
+                f"--accept=pipe,name={pipe};urp;",
             ],
-            check=True,
-            capture_output=True,
-            timeout=_CONVERT_TIMEOUT,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
+        try:
+            subprocess.run(
+                [
+                    _UNO_PYTHON,
+                    str(_UNO_SCRIPT),
+                    pipe,
+                    str(input_path),
+                    str(output_path),
+                ],
+                check=True,
+                capture_output=True,
+                timeout=_CONVERT_TIMEOUT,
+            )
+        finally:
+            soffice.terminate()
+            try:
+                soffice.wait(timeout=_SOFFICE_SHUTDOWN_TIMEOUT)
+            except subprocess.TimeoutExpired:
+                soffice.kill()
+                soffice.wait()
 
-        rendered_pdf = Path(tmp_dir) / f"{input_path.stem}.pdf"
-        if not rendered_pdf.is_file():
+        if not output_path.is_file():
             raise ValueError(f"LibreOffice did not produce a PDF for {input_path}")
 
-        disarm_pdf(rendered_pdf, output_path)
+        disarm_pdf(output_path, output_path)
 
 
 register_handler(
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel",
     "application/vnd.oasis.opendocument.spreadsheet",
     output_suffix=".pdf",
 )(disarm)
