@@ -28,8 +28,18 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Max worker processes when disarming a folder (default: CPU count).",
     )
-    parser.add_argument(
-        "-v", "--verbose", action="store_true", help="Enable debug logging."
+    verbosity_group = parser.add_mutually_exclusive_group()
+    verbosity_group.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable debug logging for petrificus-totalus.",
+    )
+    verbosity_group.add_argument(
+        "-vv",
+        "--very-verbose",
+        action="store_true",
+        help="Enable debug logging for all dependencies.",
     )
     return parser
 
@@ -49,11 +59,11 @@ def _print_folder_summary(results: list[DisarmResult]) -> int:
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.WARNING,
+        level=logging.DEBUG if args.very_verbose else logging.WARNING,
         format="%(levelname)s: %(message)s",
     )
-    logger = logging.getLogger("petrificus-totalus")
-    # logger.addHandler(logging.StreamHandler())
+    if args.verbose:
+        logging.getLogger("petrificus-totalus").setLevel(logging.DEBUG)
 
     if args.input.is_dir():
         try:
