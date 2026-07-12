@@ -53,6 +53,31 @@ def test_disarm_file_copies_trusted_mime_type_as_is(tmp_path: Path, make_image):
     assert src.read_bytes() == original_bytes
 
 
+def test_disarm_file_deletes_input_on_success_with_separate_output(
+    tmp_path: Path, make_image
+):
+    src = make_image(tmp_path / "in" / "photo.jpg", format="JPEG")
+    dst = tmp_path / "out" / "photo.jpg"
+
+    disarm_file(src, dst, delete_input_on_success=True)
+
+    assert dst.is_file()
+    assert not src.exists()
+
+
+def test_disarm_file_delete_input_on_success_is_noop_in_place(
+    tmp_path: Path, make_image
+):
+    # The disarmed output *is* the input path when disarming in place, so
+    # deleting "the input" on success must not delete the freshly written
+    # output.
+    src = make_image(tmp_path / "photo.jpg", format="JPEG")
+
+    disarm_file(src, delete_input_on_success=True)
+
+    assert src.is_file()
+
+
 def test_disarm_folder_mirrors_structure_into_output_dir(
     tmp_path: Path, make_image, make_unsupported
 ):
@@ -110,6 +135,37 @@ def test_disarm_folder_reports_trusted_status_for_trusted_mime_types(
     assert results[0].status == "trusted"
     assert results[0].output_path == src
     assert src.read_bytes() == original_bytes
+
+
+def test_disarm_folder_deletes_input_on_success_and_prunes_empty_dirs(
+    tmp_path: Path, make_image, make_unsupported
+):
+    input_dir = tmp_path / "in"
+    output_dir = tmp_path / "out"
+    make_image(input_dir / "a.jpg", format="JPEG")
+    make_image(input_dir / "nested" / "b.png", format="PNG", mode="RGBA")
+    (input_dir / "empty").mkdir(parents=True)
+    make_unsupported(input_dir / "unsupported_dir" / "payload.bin")
+
+    results = disarm_folder(input_dir, output_dir, delete_input_on_success=True)
+
+    statuses = {r.input_path.name: r.status for r in results}
+    assert statuses["a.jpg"] == "disarmed"
+    assert statuses["b.png"] == "disarmed"
+    assert statuses["payload.bin"] == "skipped"
+
+    assert (output_dir / "a.jpg").is_file()
+    assert (output_dir / "nested" / "b.png").is_file()
+
+    # Successfully disarmed input files are deleted...
+    assert not (input_dir / "a.jpg").exists()
+    assert not (input_dir / "nested" / "b.png").exists()
+    # ...along with directories left empty as a result.
+    assert not (input_dir / "nested").exists()
+    assert not (input_dir / "empty").exists()
+
+    # Skipped files are left in place, so their directory survives too.
+    assert (input_dir / "unsupported_dir" / "payload.bin").is_file()
 
 
 def test_disarm_folder_requires_existing_directory(tmp_path: Path):

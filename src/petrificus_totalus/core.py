@@ -32,6 +32,7 @@ def disarm_file(
     output_path: str | Path | None = None,
     *,
     trusted_mime_types: Iterable[str] | None = None,
+    delete_input_on_success: bool = False,
 ) -> tuple[Path, bool]:
     """Run content disarm & reconstruction on a single file.
 
@@ -50,6 +51,10 @@ def disarm_file(
     ``report.docx`` becomes ``report.docx.pdf``. In that case, if this call
     is in place, the original file is removed once the new one is written
     successfully.
+
+    If ``delete_input_on_success`` is set and ``input_path`` differs from the
+    resolved output path (i.e. this isn't an in-place disarm), ``input_path``
+    is deleted once the output has been written successfully.
 
     Returns the output path and whether the file was trusted (copied
     through as-is rather than disarmed).
@@ -106,6 +111,9 @@ def disarm_file(
     if output_suffix and in_place:
         input_path.unlink()
 
+    if delete_input_on_success and input_path != resolved_output:
+        input_path.unlink(missing_ok=True)
+
     return resolved_output, trusted
 
 
@@ -113,11 +121,15 @@ def _disarm_worker(
     input_path: Path,
     output_path: Path,
     trusted_mime_types: Iterable[str] | None,
+    delete_input_on_success: bool,
 ) -> DisarmResult:
     """Disarm one file, converting exceptions into a DisarmResult."""
     try:
         result_path, trusted = disarm_file(
-            input_path, output_path, trusted_mime_types=trusted_mime_types
+            input_path,
+            output_path,
+            trusted_mime_types=trusted_mime_types,
+            delete_input_on_success=delete_input_on_success,
         )
     except UnsupportedFileTypeError as exc:
         return DisarmResult(input_path, None, "skipped", str(exc))
@@ -126,12 +138,25 @@ def _disarm_worker(
     return DisarmResult(input_path, result_path, "trusted" if trusted else "disarmed")
 
 
+def _delete_empty_dirs(root: Path) -> None:
+    """Delete ``root`` and any subdirectory left with no files or subdirectories.
+
+    Walks bottom-up so a chain of now-empty directories is removed all the
+    way up to (and including) ``root``.
+    """
+    for dirpath, _dirnames, _filenames in os.walk(root, topdown=False):
+        directory = Path(dirpath)
+        if not any(directory.iterdir()):
+            directory.rmdir()
+
+
 def disarm_folder(
     input_dir: str | Path,
     output_dir: str | Path | None = None,
     *,
     max_workers: int | None = None,
     trusted_mime_types: Iterable[str] | None = None,
+    delete_input_on_success: bool = False,
 ) -> list[DisarmResult]:
     """Run content disarm & reconstruction on every file under ``input_dir``.
 
@@ -146,6 +171,11 @@ def disarm_folder(
     Files whose sniffed MIME type is in ``trusted_mime_types`` are copied
     through as-is instead and reported with status "trusted" - see
     :func:`disarm_file`.
+
+    If ``delete_input_on_success`` is set, each successfully disarmed or
+    trusted file is deleted from ``input_dir`` once its output has been
+    written, and any directory under ``input_dir`` left empty as a result
+    (including ones that were already empty going in) is deleted too.
     """
     input_dir = Path(input_dir)
     if not input_dir.is_dir():
@@ -166,7 +196,13 @@ def disarm_folder(
                 continue
 
             futures.append(
-                executor.submit(_disarm_worker, src, dst, trusted_mime_types)
+                executor.submit(
+                    _disarm_worker,
+                    src,
+                    dst,
+                    trusted_mime_types,
+                    delete_input_on_success,
+                )
             )
 
         for future in concurrent.futures.as_completed(futures):
@@ -179,5 +215,8 @@ def disarm_folder(
                 logger.error(f"Failed to disarm {result.input_path} ({result.detail})")
 
             results.append(result)
+
+    if delete_input_on_success:
+        _delete_empty_dirs(input_dir)
 
     return results

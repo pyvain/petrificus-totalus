@@ -45,7 +45,7 @@ from petrificus_totalus import disarm_file, disarm_folder
 disarm_file("suspicious.jpg")
 
 # Single file, written to a new path (original left untouched).
-disarm_file("suspicious.jpg", "clean/suspicious.jpg")
+output_path, trusted = disarm_file("suspicious.jpg", "clean/suspicious.jpg")
 
 # Whole directory tree, processed in parallel, mirrored into output_dir.
 results = disarm_folder("untrusted/", "clean/")
@@ -72,6 +72,14 @@ disarm_file("photo.jpg", trusted_mime_types=["image/jpeg"])
 disarm_folder("untrusted/", "clean/", trusted_mime_types=["image/jpeg", "application/pdf"])
 ```
 
+Both functions also accept `delete_input_on_success=True` to delete the input
+once its output has been written successfully (disarmed or trusted). For
+`disarm_folder()`, any input directory left empty as a result is deleted too:
+
+```python
+disarm_folder("untrusted/", "clean/", delete_input_on_success=True)
+```
+
 ## Command line
 
 ```bash
@@ -80,6 +88,7 @@ petrificus-totalus suspicious.jpg -o clean.jpg  # disarm to a new path
 petrificus-totalus untrusted/ -o clean/         # disarm a whole directory tree
 petrificus-totalus untrusted/ --max-workers 4   # cap worker processes
 petrificus-totalus untrusted/ --trust-mime image/jpeg --trust-mime application/pdf
+petrificus-totalus untrusted/ -o clean/ --delete-input-on-success
 ```
 
 Disarming a single file prints the output path on success. disarming a
@@ -89,6 +98,10 @@ exits non-zero if any file failed.
 `--trust-mime` copies files whose sniffed MIME type matches through as-is
 instead of disarming them; pass it multiple times to trust several MIME
 types.
+
+`--delete-input-on-success` deletes each successfully disarmed or trusted
+input file once its output has been written, and (when disarming a
+directory) any input folder left empty as a result.
 
 ## Supported file types
 

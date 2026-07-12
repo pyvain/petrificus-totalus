@@ -35,6 +35,15 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="MIME_TYPE",
         help="MIME type to trust. May be specified multiple times.",
     )
+    parser.add_argument(
+        "--delete-input-on-success",
+        action="store_true",
+        help=(
+            "Delete successfully disarmed or trusted input files once their "
+            "output has been written, along with any input folders left "
+            "empty as a result."
+        ),
+    )
     verbosity_group = parser.add_mutually_exclusive_group()
     verbosity_group.add_argument(
         "-v",
@@ -80,6 +89,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.output,
                 max_workers=args.max_workers,
                 trusted_mime_types=args.trust_mime,
+                delete_input_on_success=args.delete_input_on_success,
             )
         except NotADirectoryError as exc:
             print(f"petrificus-totalus: not a directory: {exc}", file=sys.stderr)
@@ -88,7 +98,10 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         output_path, _ = disarm_file(
-            args.input, args.output, trusted_mime_types=args.trust_mime
+            args.input,
+            args.output,
+            trusted_mime_types=args.trust_mime,
+            delete_input_on_success=args.delete_input_on_success,
         )
     except FileNotFoundError:
         print(f"petrificus-totalus: no such file: {args.input}", file=sys.stderr)
