@@ -4,8 +4,9 @@ import concurrent.futures
 import dataclasses
 import logging
 import os
+import shutil
 from pathlib import Path
-from typing import Literal
+from typing import Iterable, Literal
 
 from ._registry import detect_mime_type, get_handler, get_output_suffix
 
@@ -26,12 +27,21 @@ class DisarmResult:
     detail: str | None = None
 
 
-def disarm_file(input_path: str | Path, output_path: str | Path | None = None) -> Path:
+def disarm_file(
+    input_path: str | Path,
+    output_path: str | Path | None = None,
+    *,
+    trusted_mime_types: Iterable[str] | None = None,
+) -> Path:
     """Run content disarm & reconstruction on a single file.
 
     Dispatches to the handler registered for the MIME type sniffed from
     ``input_path``'s actual content. Writes to ``output_path`` if given,
     otherwise overwrites ``input_path`` in place.
+
+    If the sniffed MIME type is in ``trusted_mime_types`` (matched
+    case-insensitively), the file is copied through as-is instead of being
+    dispatched to a handler.
 
     Most handlers preserve the input's format, so the output has the same
     extension. A handler may instead be registered with an ``output_suffix``
@@ -42,7 +52,7 @@ def disarm_file(input_path: str | Path, output_path: str | Path | None = None) -
     successfully.
 
     Raises :class:`UnsupportedFileTypeError` if no handler is registered for
-    the file's MIME type.
+    the file's MIME type and it is not trusted.
     """
     input_path = Path(input_path)
     if not input_path.is_file():
@@ -52,14 +62,23 @@ def disarm_file(input_path: str | Path, output_path: str | Path | None = None) -
     in_place = base_output == input_path
     mime_type = detect_mime_type(input_path)
     logger.debug(f"{input_path}: detected mime type: {mime_type}")
-    handler = get_handler(mime_type)
-    if handler is None:
-        raise UnsupportedFileTypeError(
-            f"No CDR handler registered for MIME type {mime_type!r}"
-        )
-    logger.debug(f"{input_path}: will be handled by {handler.__module__}")
 
-    output_suffix = get_output_suffix(mime_type)
+    trusted = trusted_mime_types is not None and mime_type.lower() in {
+        t.lower() for t in trusted_mime_types
+    }
+    output_suffix: str | None
+    if trusted:
+        logger.debug(f"{input_path}: mime type is trusted, copying as-is")
+        handler = shutil.copyfile
+        output_suffix = None
+    else:
+        handler = get_handler(mime_type)
+        if handler is None:
+            raise UnsupportedFileTypeError(
+                f"No CDR handler registered for MIME type {mime_type!r}"
+            )
+        logger.debug(f"{input_path}: will be handled by {handler.__module__}")
+        output_suffix = get_output_suffix(mime_type)
     resolved_output = (
         base_output.with_name(base_output.name + output_suffix)
         if output_suffix
@@ -87,10 +106,16 @@ def disarm_file(input_path: str | Path, output_path: str | Path | None = None) -
     return resolved_output
 
 
-def _disarm_worker(input_path: Path, output_path: Path) -> DisarmResult:
+def _disarm_worker(
+    input_path: Path,
+    output_path: Path,
+    trusted_mime_types: Iterable[str] | None,
+) -> DisarmResult:
     """Disarm one file, converting exceptions into a DisarmResult."""
     try:
-        result_path = disarm_file(input_path, output_path)
+        result_path = disarm_file(
+            input_path, output_path, trusted_mime_types=trusted_mime_types
+        )
     except UnsupportedFileTypeError as exc:
         return DisarmResult(input_path, None, "skipped", str(exc))
     except Exception as exc:  # noqa: BLE001
@@ -103,6 +128,7 @@ def disarm_folder(
     output_dir: str | Path | None = None,
     *,
     max_workers: int | None = None,
+    trusted_mime_types: Iterable[str] | None = None,
 ) -> list[DisarmResult]:
     """Run content disarm & reconstruction on every file under ``input_dir``.
 
@@ -113,6 +139,9 @@ def disarm_folder(
     Files with no registered handler are skipped (not copied through
     unsanitized) and reported with status "skipped". Per-file failures are
     reported with status "failed" rather than aborting the whole run.
+
+    Files whose sniffed MIME type is in ``trusted_mime_types`` are copied
+    through as-is instead - see :func:`disarm_file`.
     """
     input_dir = Path(input_dir)
     if not input_dir.is_dir():
@@ -132,7 +161,9 @@ def disarm_folder(
             if not src.is_file():
                 continue
 
-            futures.append(executor.submit(_disarm_worker, src, dst))
+            futures.append(
+                executor.submit(_disarm_worker, src, dst, trusted_mime_types)
+            )
 
         for future in concurrent.futures.as_completed(futures):
             result = future.result()

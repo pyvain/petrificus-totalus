@@ -28,6 +28,13 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Max worker processes when disarming a folder (default: CPU count).",
     )
+    parser.add_argument(
+        "--trust-mime",
+        action="append",
+        default=None,
+        metavar="MIME_TYPE",
+        help="MIME type to trust. May be specified multiple times.",
+    )
     verbosity_group = parser.add_mutually_exclusive_group()
     verbosity_group.add_argument(
         "-v",
@@ -68,7 +75,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.input.is_dir():
         try:
             results = disarm_folder(
-                args.input, args.output, max_workers=args.max_workers
+                args.input,
+                args.output,
+                max_workers=args.max_workers,
+                trusted_mime_types=args.trust_mime,
             )
         except NotADirectoryError as exc:
             print(f"petrificus-totalus: not a directory: {exc}", file=sys.stderr)
@@ -76,7 +86,9 @@ def main(argv: list[str] | None = None) -> int:
         return _print_folder_summary(results)
 
     try:
-        output_path = disarm_file(args.input, args.output)
+        output_path = disarm_file(
+            args.input, args.output, trusted_mime_types=args.trust_mime
+        )
     except FileNotFoundError:
         print(f"petrificus-totalus: no such file: {args.input}", file=sys.stderr)
         return 1

@@ -87,7 +87,7 @@ def test_cli_folder_max_workers_is_forwarded(tmp_path: Path, monkeypatch):
 
     captured_kwargs = {}
 
-    def fake_disarm_folder(input_dir, output_dir, *, max_workers=None):
+    def fake_disarm_folder(input_dir, output_dir, *, max_workers=None, trusted_mime_types=None):
         captured_kwargs["max_workers"] = max_workers
         return []
 
@@ -96,3 +96,44 @@ def test_cli_folder_max_workers_is_forwarded(tmp_path: Path, monkeypatch):
     main([str(input_dir), "--max-workers", "3"])
 
     assert captured_kwargs["max_workers"] == 3
+
+
+def test_cli_trust_mime_is_forwarded_for_file(tmp_path: Path, make_image, monkeypatch):
+    src = make_image(tmp_path / "photo.jpg", format="JPEG")
+
+    captured_kwargs = {}
+
+    def fake_disarm_file(input_path, output_path=None, *, trusted_mime_types=None):
+        captured_kwargs["trusted_mime_types"] = trusted_mime_types
+        return input_path
+
+    monkeypatch.setattr("petrificus_totalus.cli.disarm_file", fake_disarm_file)
+
+    main(
+        [
+            str(src),
+            "--trust-mime",
+            "image/jpeg",
+            "--trust-mime",
+            "application/pdf",
+        ]
+    )
+
+    assert captured_kwargs["trusted_mime_types"] == ["image/jpeg", "application/pdf"]
+
+
+def test_cli_trust_mime_is_forwarded_for_folder(tmp_path: Path, monkeypatch):
+    input_dir = tmp_path / "docs"
+    input_dir.mkdir()
+
+    captured_kwargs = {}
+
+    def fake_disarm_folder(input_dir, output_dir, *, max_workers=None, trusted_mime_types=None):
+        captured_kwargs["trusted_mime_types"] = trusted_mime_types
+        return []
+
+    monkeypatch.setattr("petrificus_totalus.cli.disarm_folder", fake_disarm_folder)
+
+    main([str(input_dir), "--trust-mime", "image/jpeg"])
+
+    assert captured_kwargs["trusted_mime_types"] == ["image/jpeg"]
