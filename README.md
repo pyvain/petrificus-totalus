@@ -64,6 +64,14 @@ run.
 crash triggered by a malformed or malicious input only takes down that one
 file's worker, not the whole run.
 
+Both functions accept `trusted_mime_types=`, an iterable of MIME types to
+copy through as-is instead of disarming:
+
+```python
+disarm_file("photo.jpg", trusted_mime_types=["image/jpeg"])
+disarm_folder("untrusted/", "clean/", trusted_mime_types=["image/jpeg", "application/pdf"])
+```
+
 ## Command line
 
 ```bash
@@ -71,11 +79,16 @@ petrificus-totalus suspicious.jpg               # disarm in place
 petrificus-totalus suspicious.jpg -o clean.jpg  # disarm to a new path
 petrificus-totalus untrusted/ -o clean/         # disarm a whole directory tree
 petrificus-totalus untrusted/ --max-workers 4   # cap worker processes
+petrificus-totalus untrusted/ --trust-mime image/jpeg --trust-mime application/pdf
 ```
 
 Disarming a single file prints the output path on success. disarming a
 directory prints one summary line (counts of petrified/skipped/failed) and
 exits non-zero if any file failed.
+
+`--trust-mime` copies files whose sniffed MIME type matches through as-is
+instead of disarming them; pass it multiple times to trust several MIME
+types.
 
 ## Supported file types
 
