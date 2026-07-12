@@ -3,12 +3,17 @@ from pathlib import Path
 import pymupdf
 
 from petrificus_totalus import disarm_file, disarm_folder, iter_supported_mime_types
+from petrificus_totalus._registry import detect_mime_type
 
-_XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+def test_iter_supported_mime_types_includes_xlsx(tmp_path: Path, make_xlsx):
+    src = make_xlsx(tmp_path / "report.xlsx")
+    assert detect_mime_type(src) in iter_supported_mime_types()
 
 
-def test_iter_supported_mime_types_includes_xlsx():
-    assert _XLSX_MIME in iter_supported_mime_types()
+def test_iter_supported_mime_types_includes_ods(tmp_path: Path, make_ods):
+    src = make_ods(tmp_path / "report.ods")
+    assert detect_mime_type(src) in iter_supported_mime_types()
 
 
 def test_xlsx_disarm_produces_pdf_and_removes_original(tmp_path: Path, make_xlsx):
@@ -96,3 +101,54 @@ def test_xlsx_disarm_fits_varied_column_widths_on_one_page(tmp_path: Path, make_
         first_page_text = doc[0].get_text()
         assert "r1c1" in first_page_text
         assert f"r1c{len(widths)}" in first_page_text
+
+
+def test_ods_disarm_produces_pdf_and_removes_original(tmp_path: Path, make_ods):
+    src = make_ods(tmp_path / "report.ods")
+
+    result = disarm_file(src)
+
+    assert result == tmp_path / "report.ods.pdf"
+    assert result.is_file()
+    # An in-place disarm must not leave the original untrusted file behind
+    # just because the safe form has a different extension.
+    assert not src.exists()
+
+
+def test_ods_disarm_recovers_text_via_ocr(tmp_path: Path, make_ods):
+    src = make_ods(tmp_path / "sheet.ods", columns=2, rows=2)
+
+    result = disarm_file(src)
+
+    with pymupdf.open(result) as doc:
+        assert "r1c1" in doc[0].get_text()
+
+
+def test_ods_disarm_fits_all_columns_on_one_page_width(tmp_path: Path, make_ods):
+    # Wide enough that LibreOffice's default fixed page width would split
+    # the sheet across separate pages horizontally, cutting later columns
+    # off from earlier ones -- the exact problem the auto-widened page
+    # width is meant to prevent.
+    src = make_ods(tmp_path / "wide.ods", columns=20, rows=5)
+
+    result = disarm_file(src)
+
+    with pymupdf.open(result) as doc:
+        first_page_text = doc[0].get_text()
+        assert "r1c1" in first_page_text
+        assert "r1c20" in first_page_text
+
+
+def test_ods_disarm_fits_varied_column_widths_on_one_page(tmp_path: Path, make_ods):
+    widths_mm = (31.24, 59.05, 55.79, 35.95, 45.32, 43.53, 51.41, 56.76)
+    src = make_ods(
+        tmp_path / "varied.ods", columns=len(widths_mm), rows=3, column_widths_mm=widths_mm
+    )
+
+    result = disarm_file(src)
+
+    with pymupdf.open(result) as doc:
+        assert doc.page_count == 1
+        first_page_text = doc[0].get_text()
+        assert "r1c1" in first_page_text
+        assert f"r1c{len(widths_mm)}" in first_page_text

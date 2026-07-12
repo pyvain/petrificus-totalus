@@ -33,6 +33,19 @@ def test_png_roundtrip_preserves_alpha_channel(tmp_path: Path, make_image):
         assert after.getpixel((3, 4)) == before_pixel
 
 
+def test_jpeg_roundtrip_converts_non_rgb_intermediate_back_to_rgb(
+    tmp_path: Path, make_image
+):
+    src = make_image(tmp_path / "gray.jpg", format="JPEG", mode="L")
+
+    disarm_file(src)
+
+    with Image.open(src) as img:
+        assert img.format == "JPEG"
+        assert img.mode == "RGB"
+        assert img.size == (16, 12)
+
+
 def test_bmp_roundtrip(tmp_path: Path, make_image):
     src = make_image(tmp_path / "raw.bmp", format="BMP")
 

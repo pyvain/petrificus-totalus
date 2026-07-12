@@ -31,15 +31,6 @@ logger = logging.getLogger("petrificus-totalus")
 _RASTER_DPI = 300
 _DEFAULT_LANGUAGE = "eng"
 
-# Pages are rasterized in batches of this size, each batch saved to its own
-# intermediate file and reassembled at the end. Saving one page at a time
-# with saveIncr() (the previous approach) means every page reopens and
-# re-parses the whole growing output file, making that pass quadratic in
-# page count. Batching bounds both the number of times the growing file is
-# touched and the memory held at once (only one batch's pixmaps live in
-# memory at a time), at the cost of a single final merge pass.
-_BATCH_SIZE = 50
-
 # Used only to sample enough legible text to run langdetect against when a
 # document has no existing text layer (see _sample_text). Doesn't need to
 # match the document's real language -- it just has to be broad enough that

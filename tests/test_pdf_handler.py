@@ -3,7 +3,8 @@ from pathlib import Path
 import pymupdf
 import pytest
 
-from petrificus_totalus import disarm_file
+from petrificus_totalus import disarm_file, iter_supported_mime_types
+from petrificus_totalus._registry import detect_mime_type
 from petrificus_totalus.handlers import pdf as pdf_handler
 
 # pymupdf's built-in base-14 fonts (Helvetica et al.) have no Cyrillic glyphs,
@@ -19,6 +20,27 @@ _requires_dejavu_sans = pytest.mark.skipif(
 def _page_pixel(path: Path, page_index: int, xy: tuple[int, int] = (10, 10)):
     with pymupdf.open(path) as doc:
         return doc[page_index].get_pixmap().pixel(*xy)
+
+
+def _make_scanned_pdf(path: Path, text: str, *, size: tuple[float, float] = (500, 300), fontsize: int = 20):
+    """Renders ``text`` to an image-only page with no extractable text layer."""
+    with pymupdf.open() as render_doc:
+        render_page = render_doc.new_page(width=size[0], height=size[1])
+        render_page.draw_rect(render_page.rect, color=(1, 1, 1), fill=(1, 1, 1))
+        render_page.insert_text((20, 150), text, fontsize=fontsize, color=(0, 0, 0))
+        pixmap = render_page.get_pixmap(dpi=pdf_handler._RASTER_DPI)
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with pymupdf.open() as doc:
+        page = doc.new_page(width=size[0], height=size[1])
+        page.insert_image(page.rect, pixmap=pixmap)
+        doc.save(path)
+    return path
+
+
+def test_iter_supported_mime_types_includes_pdf(tmp_path: Path, make_pdf):
+    src = make_pdf(tmp_path / "doc.pdf")
+    assert detect_mime_type(src) in iter_supported_mime_types()
 
 
 def test_pdf_roundtrip_preserves_page_count_and_size(tmp_path: Path, make_pdf):
@@ -101,6 +123,17 @@ def test_detect_languages_falls_back_to_default_for_blank_document():
         assert pdf_handler._detect_languages(doc) == pdf_handler._DEFAULT_LANGUAGE
 
 
+def test_detect_languages_from_scanned_page_without_text_layer(tmp_path: Path):
+    src = _make_scanned_pdf(
+        tmp_path / "scanned.pdf",
+        "Ceci est un texte suffisamment long en francais pour la detection",
+    )
+
+    with pymupdf.open(src) as doc:
+        assert doc[0].get_textpage().extractTEXT().strip() == ""
+        assert pdf_handler._detect_languages(doc) == "fra+eng"
+
+
 @_requires_dejavu_sans
 def test_detect_languages_keeps_english_secondary_for_russian_primary():
     with pymupdf.open() as doc:
@@ -154,6 +187,19 @@ def test_pdf_disarm_recognizes_non_english_text_via_detected_language(
     src = make_pdf(
         tmp_path / "french.pdf", page_colors=((1, 1, 1),), text=text, size=(400, 300)
     )
+
+    disarm_file(src)
+
+    with pymupdf.open(src) as after:
+        recovered = after[0].get_textpage().extractTEXT().strip()
+
+    assert "café" in recovered
+    assert recovered.count("é") >= 3
+
+
+def test_pdf_disarm_recovers_text_from_purely_scanned_page(tmp_path: Path):
+    text = "Mon café préféré est ici, juste à côté"
+    src = _make_scanned_pdf(tmp_path / "scanned.pdf", text)
 
     disarm_file(src)
 

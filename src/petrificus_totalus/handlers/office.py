@@ -1,21 +1,22 @@
-"""CDR handler for Word (.docx) documents.
+"""CDR handler for Word (.docx) and PowerPoint/Impress (.pptx, .odp) documents.
 
-A .docx can carry macros, embedded OLE objects, remote-template/DDE
-injection, and other attack surface baked into the OOXML structure itself.
+These formats can carry macros, embedded OLE objects, remote-template/DDE
+injection, and other attack surface baked into their structure itself.
 Stripping all of that while keeping the file genuinely editable would mean
 enumerating every dangerous construct and trusting that enumeration is
 complete. Since the goal here is safe *viewing* of an untrusted file rather
 than re-editing it, this handler sidesteps that entirely: it renders the
-document with LibreOffice (a real Word-compatible layout engine, so
-pagination and formatting come out faithfully, unlike a naive text dump) and
-hands the resulting PDF to handlers/pdf.py's existing rasterize+OCR
+document with LibreOffice (a real Word/PowerPoint-compatible layout engine,
+so pagination and formatting come out faithfully, unlike a naive text dump)
+and hands the resulting PDF to handlers/pdf.py's existing rasterize+OCR
 pipeline -- the same "pixels only" CDR guarantee already used for PDFs and
-images.
+images. The conversion step is format-agnostic (soffice --convert-to pdf),
+so one handler covers all of them.
 
-The output is therefore a PDF, not a .docx (see the output_suffix passed to
-register_handler): disarming "report.docx" in place produces
-"report.docx.pdf", and the original is removed once that succeeds (handled
-by core.disarm_file).
+The output is therefore a PDF, not the original format (see the
+output_suffix passed to register_handler): disarming "report.docx" in place
+produces "report.docx.pdf", and the original is removed once that succeeds
+(handled by core.disarm_file).
 """
 
 import subprocess
@@ -60,5 +61,7 @@ register_handler(
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/vnd.oasis.opendocument.text",
     "text/rtf",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.oasis.opendocument.presentation",
     output_suffix=".pdf",
 )(disarm)
