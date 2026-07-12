@@ -50,7 +50,7 @@ disarm_file("suspicious.jpg", "clean/suspicious.jpg")
 # Whole directory tree, processed in parallel, mirrored into output_dir.
 results = disarm_folder("untrusted/", "clean/")
 for r in results:
-    print(r.input_path, r.status)  # "disarmed", "skipped", or "failed"
+    print(r.input_path, r.status)  # "disarmed", "trusted", "skipped", or "failed"
 ```
 
 Files with no registered handler are **skipped**, not copied through

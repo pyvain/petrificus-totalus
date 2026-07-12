@@ -19,7 +19,7 @@ def test_iter_supported_mime_types_includes_ods(tmp_path: Path, make_ods):
 def test_xlsx_disarm_produces_pdf_and_removes_original(tmp_path: Path, make_xlsx):
     src = make_xlsx(tmp_path / "report.xlsx")
 
-    result = disarm_file(src)
+    result, _ = disarm_file(src)
 
     assert result == tmp_path / "report.xlsx.pdf"
     assert result.is_file()
@@ -31,7 +31,7 @@ def test_xlsx_disarm_produces_pdf_and_removes_original(tmp_path: Path, make_xlsx
 def test_xlsx_disarm_recovers_text_via_ocr(tmp_path: Path, make_xlsx):
     src = make_xlsx(tmp_path / "sheet.xlsx", columns=2, rows=2)
 
-    result = disarm_file(src)
+    result, _ = disarm_file(src)
 
     with pymupdf.open(result) as doc:
         assert "r1c1" in doc[0].get_text()
@@ -41,7 +41,7 @@ def test_xlsx_disarm_with_explicit_output_path_leaves_original(tmp_path: Path, m
     src = make_xlsx(tmp_path / "in" / "report.xlsx")
     dst = tmp_path / "out" / "report.xlsx"
 
-    result = disarm_file(src, dst)
+    result, _ = disarm_file(src, dst)
 
     assert result == tmp_path / "out" / "report.xlsx.pdf"
     assert result.is_file()
@@ -74,7 +74,7 @@ def test_xlsx_disarm_fits_all_columns_on_one_page_width(tmp_path: Path, make_xls
     # width is meant to prevent.
     src = make_xlsx(tmp_path / "wide.xlsx", columns=20, rows=5)
 
-    result = disarm_file(src)
+    result, _ = disarm_file(src)
 
     with pymupdf.open(result) as doc:
         first_page_text = doc[0].get_text()
@@ -94,7 +94,7 @@ def test_xlsx_disarm_fits_varied_column_widths_on_one_page(tmp_path: Path, make_
     widths = (11.24, 39.05, 35.79, 15.95, 25.32, 23.53, 31.41, 36.76)
     src = make_xlsx(tmp_path / "varied.xlsx", columns=len(widths), rows=3, column_widths=widths)
 
-    result = disarm_file(src)
+    result, _ = disarm_file(src)
 
     with pymupdf.open(result) as doc:
         assert doc.page_count == 1
@@ -106,7 +106,7 @@ def test_xlsx_disarm_fits_varied_column_widths_on_one_page(tmp_path: Path, make_
 def test_ods_disarm_produces_pdf_and_removes_original(tmp_path: Path, make_ods):
     src = make_ods(tmp_path / "report.ods")
 
-    result = disarm_file(src)
+    result, _ = disarm_file(src)
 
     assert result == tmp_path / "report.ods.pdf"
     assert result.is_file()
@@ -118,7 +118,7 @@ def test_ods_disarm_produces_pdf_and_removes_original(tmp_path: Path, make_ods):
 def test_ods_disarm_recovers_text_via_ocr(tmp_path: Path, make_ods):
     src = make_ods(tmp_path / "sheet.ods", columns=2, rows=2)
 
-    result = disarm_file(src)
+    result, _ = disarm_file(src)
 
     with pymupdf.open(result) as doc:
         assert "r1c1" in doc[0].get_text()
@@ -131,7 +131,7 @@ def test_ods_disarm_fits_all_columns_on_one_page_width(tmp_path: Path, make_ods)
     # width is meant to prevent.
     src = make_ods(tmp_path / "wide.ods", columns=20, rows=5)
 
-    result = disarm_file(src)
+    result, _ = disarm_file(src)
 
     with pymupdf.open(result) as doc:
         first_page_text = doc[0].get_text()
@@ -145,7 +145,7 @@ def test_ods_disarm_fits_varied_column_widths_on_one_page(tmp_path: Path, make_o
         tmp_path / "varied.ods", columns=len(widths_mm), rows=3, column_widths_mm=widths_mm
     )
 
-    result = disarm_file(src)
+    result, _ = disarm_file(src)
 
     with pymupdf.open(result) as doc:
         assert doc.page_count == 1

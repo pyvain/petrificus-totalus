@@ -9,6 +9,7 @@ from petrificus_totalus import (
     disarm_folder,
     iter_supported_mime_types,
 )
+from petrificus_totalus._registry import detect_mime_type
 
 
 def test_iter_supported_mime_types_includes_registered_handlers():
@@ -40,6 +41,16 @@ def test_disarm_file_dispatches_on_content_not_extension(tmp_path: Path, make_im
 
     with Image.open(mislabeled) as img:
         assert img.format == "PNG"
+
+
+def test_disarm_file_copies_trusted_mime_type_as_is(tmp_path: Path, make_image):
+    src = make_image(tmp_path / "photo.jpg", format="JPEG")
+    mime_type = detect_mime_type(src)
+    original_bytes = src.read_bytes()
+
+    disarm_file(src, trusted_mime_types=[mime_type])
+
+    assert src.read_bytes() == original_bytes
 
 
 def test_disarm_folder_mirrors_structure_into_output_dir(
@@ -83,6 +94,22 @@ def test_disarm_folder_in_place(tmp_path: Path, make_image):
     assert results[0].status == "disarmed"
     assert results[0].output_path == src
     assert src.read_bytes() != original_bytes
+
+
+def test_disarm_folder_reports_trusted_status_for_trusted_mime_types(
+    tmp_path: Path, make_image
+):
+    input_dir = tmp_path / "docs"
+    src = make_image(input_dir / "photo.jpg", format="JPEG")
+    mime_type = detect_mime_type(src)
+    original_bytes = src.read_bytes()
+
+    results = disarm_folder(input_dir, trusted_mime_types=[mime_type])
+
+    assert len(results) == 1
+    assert results[0].status == "trusted"
+    assert results[0].output_path == src
+    assert src.read_bytes() == original_bytes
 
 
 def test_disarm_folder_requires_existing_directory(tmp_path: Path):

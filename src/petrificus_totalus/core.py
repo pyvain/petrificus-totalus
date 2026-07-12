@@ -23,7 +23,7 @@ class DisarmResult:
 
     input_path: Path
     output_path: Path | None
-    status: Literal["disarmed", "skipped", "failed"]
+    status: Literal["disarmed", "trusted", "skipped", "failed"]
     detail: str | None = None
 
 
@@ -32,7 +32,7 @@ def disarm_file(
     output_path: str | Path | None = None,
     *,
     trusted_mime_types: Iterable[str] | None = None,
-) -> Path:
+) -> tuple[Path, bool]:
     """Run content disarm & reconstruction on a single file.
 
     Dispatches to the handler registered for the MIME type sniffed from
@@ -50,6 +50,9 @@ def disarm_file(
     ``report.docx`` becomes ``report.docx.pdf``. In that case, if this call
     is in place, the original file is removed once the new one is written
     successfully.
+
+    Returns the output path and whether the file was trusted (copied
+    through as-is rather than disarmed).
 
     Raises :class:`UnsupportedFileTypeError` if no handler is registered for
     the file's MIME type and it is not trusted.
@@ -103,7 +106,7 @@ def disarm_file(
     if output_suffix and in_place:
         input_path.unlink()
 
-    return resolved_output
+    return resolved_output, trusted
 
 
 def _disarm_worker(
@@ -113,14 +116,14 @@ def _disarm_worker(
 ) -> DisarmResult:
     """Disarm one file, converting exceptions into a DisarmResult."""
     try:
-        result_path = disarm_file(
+        result_path, trusted = disarm_file(
             input_path, output_path, trusted_mime_types=trusted_mime_types
         )
     except UnsupportedFileTypeError as exc:
         return DisarmResult(input_path, None, "skipped", str(exc))
     except Exception as exc:  # noqa: BLE001
         return DisarmResult(input_path, None, "failed", f"{type(exc).__name__}: {exc}")
-    return DisarmResult(input_path, result_path, "disarmed")
+    return DisarmResult(input_path, result_path, "trusted" if trusted else "disarmed")
 
 
 def disarm_folder(
@@ -141,7 +144,8 @@ def disarm_folder(
     reported with status "failed" rather than aborting the whole run.
 
     Files whose sniffed MIME type is in ``trusted_mime_types`` are copied
-    through as-is instead - see :func:`disarm_file`.
+    through as-is instead and reported with status "trusted" - see
+    :func:`disarm_file`.
     """
     input_dir = Path(input_dir)
     if not input_dir.is_dir():

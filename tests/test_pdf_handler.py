@@ -46,7 +46,7 @@ def test_iter_supported_mime_types_includes_pdf(tmp_path: Path, make_pdf):
 def test_pdf_roundtrip_preserves_page_count_and_size(tmp_path: Path, make_pdf):
     src = make_pdf(tmp_path / "doc.pdf", page_colors=((1, 0, 0), (0, 1, 0), (0, 0, 1)))
 
-    result = disarm_file(src)
+    result, _ = disarm_file(src)
 
     assert result == src
     with pymupdf.open(src) as doc:
@@ -214,7 +214,7 @@ def test_disarm_file_writes_pdf_to_explicit_output_path(tmp_path: Path, make_pdf
     src = make_pdf(tmp_path / "in" / "doc.pdf")
     dst = tmp_path / "out" / "doc.pdf"
 
-    result = disarm_file(src, dst)
+    result, _ = disarm_file(src, dst)
 
     assert result == dst
     assert dst.is_file()

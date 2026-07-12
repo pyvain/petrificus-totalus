@@ -52,13 +52,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _print_folder_summary(results: list[DisarmResult]) -> int:
-    counts = {"disarmed": 0, "skipped": 0, "failed": 0}
+    counts = {"disarmed": 0, "trusted": 0, "skipped": 0, "failed": 0}
     for result in sorted(results, key=lambda r: r.input_path):
         counts[result.status] += 1
         # if result.status == "failed":
         #    print(f"FAILED   {result.input_path}: {result.detail}", file=sys.stderr)
     print(
-        f"{counts['disarmed']} disarmed, {counts['skipped']} skipped, {counts['failed']} failed"
+        f"{counts['disarmed']} disarmed, {counts['trusted']} trusted, "
+        f"{counts['skipped']} skipped, {counts['failed']} failed"
     )
     return 1 if counts["failed"] else 0
 
@@ -86,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
         return _print_folder_summary(results)
 
     try:
-        output_path = disarm_file(
+        output_path, _ = disarm_file(
             args.input, args.output, trusted_mime_types=args.trust_mime
         )
     except FileNotFoundError:

@@ -9,7 +9,7 @@ def test_jpeg_roundtrip_preserves_dimensions_and_format(tmp_path: Path, make_ima
     src = make_image(tmp_path / "photo.jpg", format="JPEG")
     original_bytes = src.read_bytes()
 
-    result = disarm_file(src)
+    result, _ = disarm_file(src)
 
     assert result == src
     with Image.open(src) as img:
@@ -60,7 +60,7 @@ def test_disarm_file_writes_to_explicit_output_path(tmp_path: Path, make_image):
     src = make_image(tmp_path / "in" / "a.jpg", format="JPEG")
     dst = tmp_path / "out" / "a.jpg"
 
-    result = disarm_file(src, dst)
+    result, _ = disarm_file(src, dst)
 
     assert result == dst
     assert dst.is_file()

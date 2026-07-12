@@ -55,7 +55,7 @@ def test_cli_disarms_folder_prints_summary(
     exit_code = main([str(input_dir)])
 
     assert exit_code == 0
-    assert capsys.readouterr().out.strip() == "1 disarmed, 1 skipped, 0 failed"
+    assert capsys.readouterr().out.strip() == "1 disarmed, 0 trusted, 1 skipped, 0 failed"
 
 
 def test_cli_folder_with_failures_reports_nonzero_exit(
@@ -78,7 +78,7 @@ def test_cli_folder_with_failures_reports_nonzero_exit(
     assert exit_code == 1
     # assert "FAILED" in captured.err
     # assert "boom" in captured.err
-    assert captured.out.strip() == "1 disarmed, 0 skipped, 1 failed"
+    assert captured.out.strip() == "1 disarmed, 0 trusted, 0 skipped, 1 failed"
 
 
 def test_cli_folder_max_workers_is_forwarded(tmp_path: Path, monkeypatch):
@@ -105,7 +105,7 @@ def test_cli_trust_mime_is_forwarded_for_file(tmp_path: Path, make_image, monkey
 
     def fake_disarm_file(input_path, output_path=None, *, trusted_mime_types=None):
         captured_kwargs["trusted_mime_types"] = trusted_mime_types
-        return input_path
+        return input_path, False
 
     monkeypatch.setattr("petrificus_totalus.cli.disarm_file", fake_disarm_file)
 

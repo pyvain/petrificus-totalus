@@ -24,7 +24,7 @@ def test_iter_supported_mime_types_includes_pptx(tmp_path: Path, make_pptx):
 def test_docx_disarm_produces_pdf_and_removes_original(tmp_path: Path, make_docx):
     src = make_docx(tmp_path / "report.docx", paragraphs=("Hello world",))
 
-    result = disarm_file(src)
+    result, _ = disarm_file(src)
 
     assert result == tmp_path / "report.docx.pdf"
     assert result.is_file()
@@ -40,7 +40,7 @@ def test_docx_disarm_preserves_pagination(tmp_path: Path, make_docx):
         page_break=True,
     )
 
-    result = disarm_file(src)
+    result, _ = disarm_file(src)
 
     with pymupdf.open(result) as doc:
         assert doc.page_count == 2
@@ -51,7 +51,7 @@ def test_docx_disarm_preserves_pagination(tmp_path: Path, make_docx):
 def test_docx_disarm_recovers_text_via_ocr(tmp_path: Path, make_docx):
     src = make_docx(tmp_path / "doc.docx", paragraphs=("Hello OCR World",))
 
-    result = disarm_file(src)
+    result, _ = disarm_file(src)
 
     with pymupdf.open(result) as doc:
         assert "Hello OCR World" in doc[0].get_text()
@@ -63,7 +63,7 @@ def test_docx_disarm_with_explicit_output_path_leaves_original(
     src = make_docx(tmp_path / "in" / "report.docx")
     dst = tmp_path / "out" / "report.docx"
 
-    result = disarm_file(src, dst)
+    result, _ = disarm_file(src, dst)
 
     assert result == tmp_path / "out" / "report.docx.pdf"
     assert result.is_file()
@@ -92,7 +92,7 @@ def test_docx_disarm_folder_in_place_removes_originals(tmp_path: Path, make_docx
 def test_odt_disarm_produces_pdf_and_removes_original(tmp_path: Path, make_odt):
     src = make_odt(tmp_path / "report.odt", paragraphs=("Hello world",))
 
-    result = disarm_file(src)
+    result, _ = disarm_file(src)
 
     assert result == tmp_path / "report.odt.pdf"
     assert result.is_file()
@@ -108,7 +108,7 @@ def test_odt_disarm_preserves_pagination(tmp_path: Path, make_odt):
         page_break=True,
     )
 
-    result = disarm_file(src)
+    result, _ = disarm_file(src)
 
     with pymupdf.open(result) as doc:
         assert doc.page_count == 2
@@ -119,7 +119,7 @@ def test_odt_disarm_preserves_pagination(tmp_path: Path, make_odt):
 def test_odt_disarm_recovers_text_via_ocr(tmp_path: Path, make_odt):
     src = make_odt(tmp_path / "doc.odt", paragraphs=("Hello OCR World",))
 
-    result = disarm_file(src)
+    result, _ = disarm_file(src)
 
     with pymupdf.open(result) as doc:
         assert "Hello OCR World" in doc[0].get_text()
@@ -128,7 +128,7 @@ def test_odt_disarm_recovers_text_via_ocr(tmp_path: Path, make_odt):
 def test_pptx_disarm_produces_pdf_and_removes_original(tmp_path: Path, make_pptx):
     src = make_pptx(tmp_path / "deck.pptx", slide_texts=("Hello world",))
 
-    result = disarm_file(src)
+    result, _ = disarm_file(src)
 
     assert result == tmp_path / "deck.pptx.pdf"
     assert result.is_file()
@@ -143,7 +143,7 @@ def test_pptx_disarm_preserves_pagination(tmp_path: Path, make_pptx):
         slide_texts=("Slide one content", "Slide two content"),
     )
 
-    result = disarm_file(src)
+    result, _ = disarm_file(src)
 
     with pymupdf.open(result) as doc:
         assert doc.page_count == 2
@@ -154,7 +154,7 @@ def test_pptx_disarm_preserves_pagination(tmp_path: Path, make_pptx):
 def test_pptx_disarm_recovers_text_via_ocr(tmp_path: Path, make_pptx):
     src = make_pptx(tmp_path / "deck.pptx", slide_texts=("Hello OCR World",))
 
-    result = disarm_file(src)
+    result, _ = disarm_file(src)
 
     with pymupdf.open(result) as doc:
         assert "Hello OCR World" in doc[0].get_text()
@@ -166,7 +166,7 @@ def test_pptx_disarm_with_explicit_output_path_leaves_original(
     src = make_pptx(tmp_path / "in" / "deck.pptx")
     dst = tmp_path / "out" / "deck.pptx"
 
-    result = disarm_file(src, dst)
+    result, _ = disarm_file(src, dst)
 
     assert result == tmp_path / "out" / "deck.pptx.pdf"
     assert result.is_file()
