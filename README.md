@@ -113,6 +113,7 @@ directory) any input folder left empty as a result.
 | MS Excel, LibreOffice Calc | Render with LibreOffice to PDF, widening each sheet's page to fit its used columns so none spill onto a separate page, then run the PDF strategy above. Output is `<name>.xlsx.pdf` or `<name>.ods.pdf`, not a `.xlsx` or a `.ods` |
 | MS PowerPoint, LibreOffice Impress | Render with LibreOffice to PDF, then run the PDF strategy above. Output is `<name>.pptx.pdf` or `<name>.odp.pdf`, not a `.pptx` or a `.odp` |
 | Plain text, CSV | Copy unmodified. |
+| MP4/MOV, Matroska (MKV), AVI, WebM | Fully decode every video, audio, and text-subtitle stream and re-encode through a lossless intermediate (FFV1 video, FLAC audio, ASS subtitles), then re-encode that back into the original container/codecs (losslessly where the codec supports it). All other streams (data, attachments, image-based subtitles) are dropped and logged. |
 
 Files are matched by MIME type, not extension - see `iter_supported_mime_types()`.
 
@@ -153,5 +154,6 @@ uv build           # build a wheel + sdist into dist/
 
 The project uses the following external dependencies not installed by `uv
 sync`:
-* LibreOffice (`soffice`, for `.docx` rendering)
-* Tesseract (OCR, via `ocrmypdf`).
+* LibreOffice (`soffice`, for office document rendering)
+* Tesseract (OCR, via `ocrmypdf`)
+* `ffmpeg` for video transcoding

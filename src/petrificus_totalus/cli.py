@@ -64,8 +64,6 @@ def _print_folder_summary(results: list[DisarmResult]) -> int:
     counts = {"disarmed": 0, "trusted": 0, "skipped": 0, "failed": 0}
     for result in sorted(results, key=lambda r: r.input_path):
         counts[result.status] += 1
-        # if result.status == "failed":
-        #    print(f"FAILED   {result.input_path}: {result.detail}", file=sys.stderr)
     print(
         f"{counts['disarmed']} disarmed, {counts['trusted']} trusted, "
         f"{counts['skipped']} skipped, {counts['failed']} failed"

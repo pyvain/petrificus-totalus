@@ -5,6 +5,7 @@ description = "Modular content disarm & reconstruction (CDR) library"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "ffmpeg-python>=0.2.0",
     "langdetect>=1.0.9",
     "ocrmypdf>=16.13.0",
     "pillow>=10",
