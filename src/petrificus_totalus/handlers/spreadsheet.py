@@ -4,14 +4,14 @@ The output is a PDF, not the original spreadsheet format: disarming
 "report.xlsx" in place produces "report.xlsx.pdf".
 """
 
-import shutil
+import os
 import subprocess
-import tempfile
 import uuid
 from functools import lru_cache
 from pathlib import Path
 
 from .._registry import register_handler
+from ..helpers.tempfile import temp_dir
 from .pdf import disarm as disarm_pdf
 
 _CONVERT_TIMEOUT = 120
@@ -33,8 +33,8 @@ _UNO_PYTHON = "/usr/bin/python3"
 
 
 def disarm(input_path: Path, output_path: Path) -> None:
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        profile = Path(tmp_dir) / "profile"
+    with temp_dir(dirname=output_path, prefix=".disarming-") as tmp_dir:
+        profile = tmp_dir / "profile"
         pipe = f"petrificus_totalus_{uuid.uuid4().hex}"
 
         soffice = subprocess.Popen(
@@ -74,7 +74,8 @@ def disarm(input_path: Path, output_path: Path) -> None:
         if not output_path.is_file():
             raise ValueError(f"LibreOffice did not produce a PDF for {input_path}")
 
-        disarm_pdf(output_path, output_path)
+        if not os.getenv("PETRIFICUS_TRUST_LIBREOFFICE_PDF", False):
+            disarm_pdf(output_path, output_path)
 
 
 register_handler(

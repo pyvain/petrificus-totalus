@@ -15,6 +15,7 @@ from pathlib import Path
 import ffmpeg
 
 from .._registry import detect_mime_type, register_handler
+from ..helpers.tempfile import temp_file
 
 logger = logging.getLogger("petrificus-totalus")
 
@@ -104,8 +105,9 @@ def disarm(input_path: Path, output_path: Path) -> None:
                 "is not video, audio, or a text subtitle codec -- dropping it"
             )
 
-    intermediate = output_path.parent / f"{output_path.name}.tmp.mkv"
-    try:
+    with temp_file(
+        filename=output_path, prefix=".disarming-", suffix=".mkv"
+    ) as intermediate:
         intermediate_kwargs = {
             "map_metadata": "-1",
             "map_chapters": "-1",
@@ -139,8 +141,6 @@ def disarm(input_path: Path, output_path: Path) -> None:
         ffmpeg.output(*remapped, str(output_path), **final_kwargs).run(
             overwrite_output=True, quiet=True
         )
-    finally:
-        intermediate.unlink(missing_ok=True)
 
 
 register_handler(

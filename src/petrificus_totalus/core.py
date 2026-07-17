@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Iterable, Literal
 
 from ._registry import detect_mime_type, get_handler, get_output_suffix
+from .helpers.tempfile import temp_file
 
 logger = logging.getLogger("petrificus-totalus")
 
@@ -95,18 +96,14 @@ def disarm_file(
     )
     logger.debug(f"{input_path}: output will be {resolved_output}")
 
-    resolved_output.parent.mkdir(parents=True, exist_ok=True)
     # Handlers write to a temp path first, promoted via atomic rename only on
     # success. This matters most when output_path == input_path: a handler
     # that fails partway through must never leave a truncated file behind in
     # place of the original.
-    tmp_output = resolved_output.with_name(f".{resolved_output.name}.disarming.tmp")
-    logger.debug(f"{input_path}: temporary output: {tmp_output}")
-    try:
+    with temp_file(filename=resolved_output, prefix=".disarming-") as tmp_output:
+        logger.debug(f"{input_path}: temporary output: {tmp_output}")
         handler(input_path, tmp_output)
-        os.replace(tmp_output, resolved_output)
-    finally:
-        tmp_output.unlink(missing_ok=True)
+        tmp_output.rename(resolved_output)
 
     if output_suffix and in_place:
         input_path.unlink()

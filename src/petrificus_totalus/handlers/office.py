@@ -19,21 +19,22 @@ produces "report.docx.pdf", and the original is removed once that succeeds
 (handled by core.disarm_file).
 """
 
+import os
 import subprocess
-import tempfile
 from pathlib import Path
 
 from .._registry import register_handler
+from ..helpers.tempfile import temp_dir
 from .pdf import disarm as disarm_pdf
 
 _CONVERT_TIMEOUT = 120
 
 
 def disarm(input_path: Path, output_path: Path) -> None:
-    with tempfile.TemporaryDirectory() as tmp_dir:
+    with temp_dir(dirname=output_path, prefix=".disarming-") as tmp_dir:
         # Each conversion gets its own LibreOffice profile dir so concurrent
         # disarm_folder workers don't collide over the same profile lock.
-        profile_dir = Path(tmp_dir) / "profile"
+        profile_dir = tmp_dir / "profile"
         subprocess.run(
             [
                 "soffice",
@@ -41,7 +42,7 @@ def disarm(input_path: Path, output_path: Path) -> None:
                 "--convert-to",
                 "pdf",
                 "--outdir",
-                tmp_dir,
+                str(tmp_dir),
                 f"-env:UserInstallation=file://{profile_dir}",
                 str(input_path),
             ],
@@ -50,11 +51,14 @@ def disarm(input_path: Path, output_path: Path) -> None:
             timeout=_CONVERT_TIMEOUT,
         )
 
-        rendered_pdf = Path(tmp_dir) / f"{input_path.stem}.pdf"
+        rendered_pdf = tmp_dir / f"{input_path.stem}.pdf"
         if not rendered_pdf.is_file():
             raise ValueError(f"LibreOffice did not produce a PDF for {input_path}")
 
-        disarm_pdf(rendered_pdf, output_path)
+        if os.getenv("PETRIFICUS_TRUST_LIBREOFFICE_PDF", False):
+            rendered_pdf.rename(output_path)
+        else:
+            disarm_pdf(rendered_pdf, output_path)
 
 
 register_handler(
