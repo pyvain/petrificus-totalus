@@ -63,9 +63,11 @@ def disarm(input_path: Path, output_path: Path) -> None:
 
 register_handler(
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/msword",
     "application/vnd.oasis.opendocument.text",
     "text/rtf",
     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.ms-powerpoint",
     "application/vnd.oasis.opendocument.presentation",
     output_suffix=".pdf",
 )(disarm)
